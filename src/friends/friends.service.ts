@@ -230,6 +230,7 @@ export class FriendsService {
       displayName: profile.displayName,
       bio: profile.bio,
       avatarUrl: profile.avatarUrl,
+      onboardingCompleted: profile.onboardingCompleted,
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
     };
