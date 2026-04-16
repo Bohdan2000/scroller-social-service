@@ -8,6 +8,7 @@ import {
   UsernameRequiredForCreationException,
 } from '../common/exceptions/domain.exceptions';
 import { Profile } from '@prisma/client';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class ProfilesService {
@@ -34,6 +35,41 @@ export class ProfilesService {
       throw new ProfileNotFoundException();
     }
     return profile;
+  }
+
+  // ─── Event-driven creation ───────────────────────────────────────────────────
+
+  /**
+   * Called when `user.registered` is received from RabbitMQ.
+   * Creates a minimal profile with a generated username.
+   * Idempotent — does nothing if the profile already exists.
+   */
+  async createFromEvent(userId: string, email: string): Promise<void> {
+    const existing = await this.findProfileByUserId(userId);
+    if (existing) {
+      this.logger.debug(`Profile already exists for userId=${userId}, skipping`);
+      return;
+    }
+
+    const username = this.generateUsername(email, userId);
+
+    try {
+      await this.prisma.profile.create({
+        data: { userId, username },
+      });
+      this.logger.log(`Auto-created profile for userId=${userId} username=${username}`);
+    } catch (err: unknown) {
+      if (this.isUniqueConstraintViolation(err, 'username')) {
+        // Collision — append more entropy and retry once
+        const fallback = `${username}_${randomBytes(2).toString('hex')}`;
+        await this.prisma.profile.create({
+          data: { userId, username: fallback },
+        });
+        this.logger.log(`Auto-created profile (fallback) for userId=${userId} username=${fallback}`);
+        return;
+      }
+      throw err;
+    }
   }
 
   // ─── Public API ─────────────────────────────────────────────────────────────
@@ -102,9 +138,21 @@ export class ProfilesService {
       displayName: profile.displayName,
       bio: profile.bio,
       avatarUrl: profile.avatarUrl,
+      onboardingCompleted: profile.onboardingCompleted,
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
     };
+  }
+
+  /**
+   * Derives a username from the email local-part + a short userId suffix.
+   * Replaces non-alphanumeric chars with underscores; truncates to keep total ≤ 30 chars.
+   */
+  private generateUsername(email: string, userId: string): string {
+    const localPart = email.split('@')[0] ?? 'user';
+    const sanitized = localPart.replace(/[^a-zA-Z0-9_]/g, '_').slice(0, 20);
+    const suffix = userId.replace(/-/g, '').slice(0, 6);
+    return `${sanitized}_${suffix}`;
   }
 
   private isUniqueConstraintViolation(err: unknown, field?: string): boolean {

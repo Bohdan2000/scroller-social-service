@@ -8,6 +8,8 @@ import { ProfilesModule } from './profiles/profiles.module';
 import { TopicsModule } from './topics/topics.module';
 import { FriendsModule } from './friends/friends.module';
 import { GroupsModule } from './groups/groups.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
+import { EventsModule } from './events/events.module';
 import { JwtAccessStrategy } from './common/strategies/jwt-access.strategy';
 
 @Module({
@@ -18,12 +20,14 @@ import { JwtAccessStrategy } from './common/strategies/jwt-access.strategy';
       expandVariables: true,
     }),
     PassportModule.register({ defaultStrategy: 'jwt-access' }),
+    EventsModule,
     PrismaModule,
     HealthModule,
     ProfilesModule,
     TopicsModule,
     FriendsModule,
     GroupsModule,
+    OnboardingModule,
   ],
   providers: [JwtAccessStrategy],
 })

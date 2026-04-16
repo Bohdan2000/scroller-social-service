@@ -19,6 +19,9 @@ export class ProfileResponseDto {
   @ApiPropertyOptional({ example: 'https://cdn.example.com/avatars/123.jpg' })
   avatarUrl: string | null;
 
+  @ApiProperty({ example: false })
+  onboardingCompleted: boolean;
+
   @ApiProperty({ example: '2026-01-01T00:00:00.000Z' })
   createdAt: Date;
 

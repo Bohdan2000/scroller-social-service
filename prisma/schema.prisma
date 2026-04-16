@@ -9,14 +9,15 @@ datasource db {
 }
 
 model Profile {
-  id          String  @id @default(uuid())
-  userId      String  @unique @map("user_id")
-  username    String  @unique
-  displayName String? @map("display_name")
-  bio         String?
-  avatarUrl   String? @map("avatar_url")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                  String   @id @default(uuid())
+  userId              String   @unique @map("user_id")
+  username            String   @unique
+  displayName         String?  @map("display_name")
+  bio                 String?
+  avatarUrl           String?  @map("avatar_url")
+  onboardingCompleted Boolean  @default(false) @map("onboarding_completed")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
   topicPreferences UserTopicPreference[]
   sentRequests     FriendRequest[]       @relation("SentRequests")
