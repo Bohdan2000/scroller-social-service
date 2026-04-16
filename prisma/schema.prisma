@@ -1,0 +1,132 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id          String  @id @default(uuid())
+  userId      String  @unique @map("user_id")
+  username    String  @unique
+  displayName String? @map("display_name")
+  bio         String?
+  avatarUrl   String? @map("avatar_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  topicPreferences UserTopicPreference[]
+  sentRequests     FriendRequest[]       @relation("SentRequests")
+  receivedRequests FriendRequest[]       @relation("ReceivedRequests")
+  friendshipsA     Friendship[]          @relation("FriendshipProfileA")
+  friendshipsB     Friendship[]          @relation("FriendshipProfileB")
+  ownedGroups      Group[]
+  groupMemberships GroupMember[]
+
+  @@map("profiles")
+}
+
+model Topic {
+  id        String   @id @default(uuid())
+  slug      String   @unique
+  title     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  preferences UserTopicPreference[]
+
+  @@map("topics")
+}
+
+model UserTopicPreference {
+  id        String   @id @default(uuid())
+  profileId String   @map("profile_id")
+  topicId   String   @map("topic_id")
+  weight    Float    @default(1.0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  topic   Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, topicId])
+  @@index([profileId])
+  @@map("user_topic_preferences")
+}
+
+enum FriendRequestStatus {
+  pending
+  accepted
+  rejected
+}
+
+model FriendRequest {
+  id                 String              @id @default(uuid())
+  requesterProfileId String              @map("requester_profile_id")
+  targetProfileId    String              @map("target_profile_id")
+  status             FriendRequestStatus @default(pending)
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  requester Profile @relation("SentRequests",    fields: [requesterProfileId], references: [id], onDelete: Cascade)
+  target    Profile @relation("ReceivedRequests", fields: [targetProfileId],    references: [id], onDelete: Cascade)
+
+  @@unique([requesterProfileId, targetProfileId])
+  @@index([requesterProfileId])
+  @@index([targetProfileId])
+  @@map("friend_requests")
+}
+
+model Friendship {
+  id         String   @id @default(uuid())
+  profileAId String   @map("profile_a_id")
+  profileBId String   @map("profile_b_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  profileA Profile @relation("FriendshipProfileA", fields: [profileAId], references: [id], onDelete: Cascade)
+  profileB Profile @relation("FriendshipProfileB", fields: [profileBId], references: [id], onDelete: Cascade)
+
+  @@unique([profileAId, profileBId])
+  @@index([profileAId])
+  @@index([profileBId])
+  @@map("friendships")
+}
+
+model Group {
+  id             String   @id @default(uuid())
+  ownerProfileId String   @map("owner_profile_id")
+  name           String
+  description    String?
+  isPrivate      Boolean  @default(false) @map("is_private")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  owner   Profile       @relation(fields: [ownerProfileId], references: [id])
+  members GroupMember[]
+
+  @@index([ownerProfileId])
+  @@map("groups")
+}
+
+enum GroupMemberRole {
+  owner
+  admin
+  member
+}
+
+model GroupMember {
+  id        String          @id @default(uuid())
+  groupId   String          @map("group_id")
+  profileId String          @map("profile_id")
+  role      GroupMemberRole @default(member)
+  joinedAt  DateTime        @default(now()) @map("joined_at")
+
+  group   Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, profileId])
+  @@index([groupId])
+  @@index([profileId])
+  @@map("group_members")
+}

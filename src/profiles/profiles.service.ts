@@ -1,0 +1,133 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ProfileResponseDto } from './dto/profile-response.dto';
+import {
+  ProfileNotFoundException,
+  UsernameAlreadyTakenException,
+  UsernameRequiredForCreationException,
+} from '../common/exceptions/domain.exceptions';
+import { Profile } from '@prisma/client';
+
+@Injectable()
+export class ProfilesService {
+  private readonly logger = new Logger(ProfilesService.name);
+
+  constructor(private readonly prisma: PrismaService) {}
+
+  // ─── Internal helper ────────────────────────────────────────────────────────
+
+  /**
+   * Returns the profile for the given Identity-Service userId, or null.
+   * Used internally by all services that need to resolve userId → profile.
+   */
+  async findProfileByUserId(userId: string): Promise<Profile | null> {
+    return this.prisma.profile.findUnique({ where: { userId } });
+  }
+
+  /**
+   * Returns the profile for the given userId, throwing if not found.
+   */
+  async getProfileByUserId(userId: string): Promise<Profile> {
+    const profile = await this.findProfileByUserId(userId);
+    if (!profile) {
+      throw new ProfileNotFoundException();
+    }
+    return profile;
+  }
+
+  // ─── Public API ─────────────────────────────────────────────────────────────
+
+  async getMyProfile(userId: string): Promise<ProfileResponseDto> {
+    const profile = await this.getProfileByUserId(userId);
+    return this.toResponse(profile);
+  }
+
+  async upsertProfile(
+    userId: string,
+    dto: UpdateProfileDto,
+  ): Promise<ProfileResponseDto> {
+    const existing = await this.findProfileByUserId(userId);
+
+    // On first creation username is mandatory
+    if (!existing && !dto.username) {
+      throw new UsernameRequiredForCreationException();
+    }
+
+    try {
+      if (existing) {
+        const updated = await this.prisma.profile.update({
+          where: { userId },
+          data: {
+            ...(dto.username !== undefined && { username: dto.username }),
+            ...(dto.displayName !== undefined && { displayName: dto.displayName }),
+            ...(dto.bio !== undefined && { bio: dto.bio }),
+            ...(dto.avatarUrl !== undefined && { avatarUrl: dto.avatarUrl }),
+          },
+        });
+        this.emitEvent('profile.updated', { profileId: updated.id, userId });
+        return this.toResponse(updated);
+      } else {
+        const created = await this.prisma.profile.create({
+          data: {
+            userId,
+            username: dto.username as string,
+            displayName: dto.displayName ?? null,
+            bio: dto.bio ?? null,
+            avatarUrl: dto.avatarUrl ?? null,
+          },
+        });
+        this.emitEvent('profile.created', {
+          profileId: created.id,
+          userId,
+          username: created.username,
+        });
+        return this.toResponse(created);
+      }
+    } catch (err: unknown) {
+      if (this.isUniqueConstraintViolation(err, 'username')) {
+        throw new UsernameAlreadyTakenException();
+      }
+      throw err;
+    }
+  }
+
+  // ─── Helpers ────────────────────────────────────────────────────────────────
+
+  private toResponse(profile: Profile): ProfileResponseDto {
+    return {
+      id: profile.id,
+      userId: profile.userId,
+      username: profile.username,
+      displayName: profile.displayName,
+      bio: profile.bio,
+      avatarUrl: profile.avatarUrl,
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
+    };
+  }
+
+  private isUniqueConstraintViolation(err: unknown, field?: string): boolean {
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as Record<string, unknown>)['code'] === 'P2002'
+    ) {
+      if (!field) return true;
+      const meta = (err as Record<string, unknown>)['meta'] as
+        | Record<string, unknown>
+        | undefined;
+      const target = meta?.['target'];
+      if (Array.isArray(target)) {
+        return target.includes(field);
+      }
+      return true;
+    }
+    return false;
+  }
+
+  private emitEvent(event: string, payload: Record<string, unknown>): void {
+    this.logger.debug(`[event] ${event} ${JSON.stringify(payload)}`);
+  }
+}
