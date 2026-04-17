@@ -37,6 +37,30 @@ export class ProfilesService {
     return profile;
   }
 
+  /**
+   * Returns the profile for the given userId, creating a minimal one if it does
+   * not yet exist. Handles the race condition between the USER_REGISTERED event
+   * being consumed and the user reaching the onboarding screen.
+   */
+  async ensureProfile(userId: string): Promise<Profile> {
+    const existing = await this.findProfileByUserId(userId);
+    if (existing) return existing;
+
+    const username = `user_${userId.replace(/-/g, '').slice(0, 12)}`;
+    try {
+      return await this.prisma.profile.create({ data: { userId, username } });
+    } catch (err: unknown) {
+      if (this.isUniqueConstraintViolation(err, 'username')) {
+        const fallback = `${username}_${randomBytes(2).toString('hex')}`;
+        return await this.prisma.profile.create({ data: { userId, username: fallback } });
+      }
+      // Concurrent request may have created it — retry the read once
+      const profile = await this.findProfileByUserId(userId);
+      if (profile) return profile;
+      throw err;
+    }
+  }
+
   // ─── Event-driven creation ───────────────────────────────────────────────────
 
   /**

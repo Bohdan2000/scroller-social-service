@@ -40,6 +40,23 @@ export class TopicsService {
     };
   }
 
+  async getMyTopics(userId: string): Promise<TopicPreferenceResponseDto[]> {
+    const profile = await this.profilesService.getProfileByUserId(userId);
+
+    const preferences = await this.prisma.userTopicPreference.findMany({
+      where: { profileId: profile.id },
+      include: { topic: true },
+      orderBy: { weight: 'desc' },
+    });
+
+    return preferences.map((pref) => ({
+      id: pref.id,
+      topic: this.toTopicResponse(pref.topic),
+      weight: pref.weight,
+      createdAt: pref.createdAt,
+    }));
+  }
+
   async setTopics(
     userId: string,
     dto: SetTopicsDto,

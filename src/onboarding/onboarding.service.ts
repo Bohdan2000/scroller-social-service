@@ -14,7 +14,10 @@ export class OnboardingService {
   ) {}
 
   async getStatus(userId: string): Promise<OnboardingStatusDto> {
-    const profile = await this.profilesService.getProfileByUserId(userId);
+    const profile = await this.profilesService.findProfileByUserId(userId);
+    if (!profile) {
+      return { completed: false, step1Completed: false, step2Completed: false };
+    }
 
     const step2Completed = profile.onboardingCompleted;
     const step1Completed = profile.displayName !== null || step2Completed;
@@ -27,7 +30,7 @@ export class OnboardingService {
   }
 
   async completeStep1(userId: string, dto: OnboardingStep1Dto): Promise<ProfileResponseDto> {
-    const profile = await this.profilesService.getProfileByUserId(userId);
+    const profile = await this.profilesService.ensureProfile(userId);
 
     const updated = await this.prisma.profile.update({
       where: { id: profile.id },
