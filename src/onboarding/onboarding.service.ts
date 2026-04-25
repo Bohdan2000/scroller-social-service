@@ -1,16 +1,21 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfilesService } from '../profiles/profiles.service';
 import { OnboardingStatusDto } from './dto/onboarding-status.dto';
 import { OnboardingStep1Dto } from './dto/onboarding-step1.dto';
 import { OnboardingStep2Dto } from './dto/onboarding-step2.dto';
 import { ProfileResponseDto } from '../profiles/dto/profile-response.dto';
+import { SCROLLER_EXCHANGE, RoutingKeys } from '../events/events.constants';
 
 @Injectable()
 export class OnboardingService {
+  private readonly logger = new Logger(OnboardingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly profilesService: ProfilesService,
+    private readonly amqpConnection: AmqpConnection,
   ) {}
 
   async getStatus(userId: string): Promise<OnboardingStatusDto> {
@@ -89,6 +94,15 @@ export class OnboardingService {
         data: { onboardingCompleted: true },
       }),
     ]);
+
+    try {
+      await this.amqpConnection.publish(SCROLLER_EXCHANGE, RoutingKeys.USER_TOPICS_UPDATED, {
+        userId,
+        topics: dto.topics.map((t) => ({ topicId: t.topicId, weight: t.weight ?? 1.0 })),
+      });
+    } catch (err) {
+      this.logger.error(`Failed to publish user.topics.updated for userId=${userId}: ${String(err)}`);
+    }
 
     return { completed: true, step1Completed: true, step2Completed: true };
   }

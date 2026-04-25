@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfilesService } from '../profiles/profiles.service';
 import { SetTopicsDto } from './dto/set-topics.dto';
@@ -9,6 +10,7 @@ import {
 } from './dto/topic-response.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { Topic } from '@prisma/client';
+import { SCROLLER_EXCHANGE, RoutingKeys } from '../events/events.constants';
 
 @Injectable()
 export class TopicsService {
@@ -17,6 +19,7 @@ export class TopicsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly profilesService: ProfilesService,
+    private readonly amqpConnection: AmqpConnection,
   ) {}
 
   async listTopics(pagination: PaginationDto): Promise<PaginatedTopicsResponseDto> {
@@ -104,6 +107,8 @@ export class TopicsService {
       orderBy: { createdAt: 'asc' },
     });
 
+    await this.publishTopicsUpdated(userId, preferences.map((p) => ({ topicId: p.topicId, weight: p.weight })));
+
     return preferences.map((pref) => ({
       id: pref.id,
       topic: this.toTopicResponse(pref.topic),
@@ -123,7 +128,17 @@ export class TopicsService {
     };
   }
 
-  private emitEvent(event: string, payload: Record<string, unknown>): void {
-    this.logger.debug(`[event] ${event} ${JSON.stringify(payload)}`);
+  private async publishTopicsUpdated(
+    userId: string,
+    topics: Array<{ topicId: string; weight: number }>,
+  ): Promise<void> {
+    try {
+      await this.amqpConnection.publish(SCROLLER_EXCHANGE, RoutingKeys.USER_TOPICS_UPDATED, {
+        userId,
+        topics,
+      });
+    } catch (err) {
+      this.logger.error(`Failed to publish user.topics.updated for userId=${userId}: ${String(err)}`);
+    }
   }
 }

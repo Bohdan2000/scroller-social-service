@@ -7,4 +7,5 @@ export const Queues = {
 
 export const RoutingKeys = {
   USER_REGISTERED: 'user.registered',
+  USER_TOPICS_UPDATED: 'user.topics.updated',
 } as const;

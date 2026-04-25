@@ -22,5 +22,6 @@ import { SCROLLER_DLX, SCROLLER_EXCHANGE } from './events.constants';
     ProfilesModule,
   ],
   providers: [UserRegisteredConsumer],
+  exports: [RabbitMQModule],
 })
 export class EventsModule {}
