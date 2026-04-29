@@ -32,6 +32,17 @@ export class FriendshipResponseDto {
   createdAt: Date;
 }
 
+export class IncomingFriendRequestDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty({ type: ProfileResponseDto })
+  requester: ProfileResponseDto;
+
+  @ApiProperty({ example: '2026-01-01T00:00:00.000Z' })
+  createdAt: Date;
+}
+
 export class PaginatedFriendsResponseDto {
   @ApiProperty({ type: [FriendshipResponseDto] })
   data: FriendshipResponseDto[];

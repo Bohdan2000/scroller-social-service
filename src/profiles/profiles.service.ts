@@ -98,6 +98,35 @@ export class ProfilesService {
 
   // ─── Public API ─────────────────────────────────────────────────────────────
 
+  async searchProfiles(
+    callerUserId: string,
+    q: string,
+    page: number,
+    limit: number,
+  ): Promise<{ data: ProfileResponseDto[]; total: number }> {
+    const trimmed = q.trim();
+    const where = {
+      userId: { not: callerUserId },
+      onboardingCompleted: true,
+      ...(trimmed && {
+        OR: [
+          { username: { contains: trimmed, mode: 'insensitive' as const } },
+          { displayName: { contains: trimmed, mode: 'insensitive' as const } },
+        ],
+      }),
+    };
+    const [profiles, total] = await this.prisma.$transaction([
+      this.prisma.profile.findMany({
+        where,
+        take: limit,
+        skip: (page - 1) * limit,
+        orderBy: { displayName: 'asc' },
+      }),
+      this.prisma.profile.count({ where }),
+    ]);
+    return { data: profiles.map(p => this.toResponse(p)), total };
+  }
+
   async getMyProfile(userId: string): Promise<ProfileResponseDto> {
     const profile = await this.getProfileByUserId(userId);
     return this.toResponse(profile);

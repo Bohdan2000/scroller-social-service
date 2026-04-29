@@ -5,6 +5,7 @@ import { SendFriendRequestDto } from './dto/send-friend-request.dto';
 import {
   FriendRequestResponseDto,
   FriendshipResponseDto,
+  IncomingFriendRequestDto,
   PaginatedFriendsResponseDto,
 } from './dto/friend-response.dto';
 import { ProfileResponseDto } from '../profiles/dto/profile-response.dto';
@@ -16,7 +17,7 @@ import {
   FriendRequestNotPendingException,
   ProfileNotFoundException,
 } from '../common/exceptions/domain.exceptions';
-import { FriendRequest, Friendship, Profile } from '@prisma/client';
+import { FriendRequest, FriendRequestStatus, Friendship, Profile } from '@prisma/client';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Injectable()
@@ -202,6 +203,35 @@ export class FriendsService {
     });
 
     return { data, total, page, limit };
+  }
+
+  async getIncomingRequests(
+    userId: string,
+    pagination: PaginationDto,
+  ): Promise<{ data: IncomingFriendRequestDto[]; total: number }> {
+    const profile = await this.profilesService.getProfileByUserId(userId);
+    const { page, limit } = pagination;
+
+    const where = { targetProfileId: profile.id, status: FriendRequestStatus.pending };
+    const [requests, total] = await Promise.all([
+      this.prisma.friendRequest.findMany({
+        where,
+        include: { requester: true },
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.friendRequest.count({ where }),
+    ]);
+
+    return {
+      data: requests.map(r => ({
+        id: r.id,
+        requester: this.toProfileResponse(r.requester as Profile),
+        createdAt: r.createdAt,
+      })),
+      total,
+    };
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────────────

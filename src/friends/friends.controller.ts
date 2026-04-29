@@ -21,6 +21,7 @@ import { SendFriendRequestDto } from './dto/send-friend-request.dto';
 import {
   FriendRequestResponseDto,
   FriendshipResponseDto,
+  IncomingFriendRequestDto,
   PaginatedFriendsResponseDto,
 } from './dto/friend-response.dto';
 import { JwtAccessGuard } from '../common/guards/jwt-access.guard';
@@ -78,6 +79,18 @@ export class FriendsController {
     @Param('id') requestId: string,
   ): Promise<FriendRequestResponseDto> {
     return this.friendsService.rejectRequest(userId, requestId);
+  }
+
+  @Get('friends/requests')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List incoming pending friend requests' })
+  @ApiResponse({ status: 200 })
+  @ApiResponse({ status: 401, type: ErrorResponseDto })
+  async getIncomingRequests(
+    @CurrentUser('sub') userId: string,
+    @Query() pagination: PaginationDto,
+  ): Promise<{ data: IncomingFriendRequestDto[]; total: number }> {
+    return this.friendsService.getIncomingRequests(userId, pagination);
   }
 
   @Get('friends')
