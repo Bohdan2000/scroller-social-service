@@ -36,6 +36,28 @@ export class UploadService {
     });
   }
 
+  async getImageUploadUrl(userId: string, contentType: string, folder = 'uploads'): Promise<UploadUrlResult> {
+    const ext = CONTENT_TYPE_EXT[contentType] ?? 'jpg';
+    const key = `${folder}/${userId}/${randomUUID()}.${ext}`;
+
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ContentType: contentType,
+      CacheControl: 'max-age=31536000',
+    });
+
+    const uploadUrl = await getSignedUrl(this.client, command, {
+      expiresIn: PRESIGNED_URL_EXPIRES_SECONDS,
+    });
+
+    const fileUrl = this.cdnUrl
+      ? `${this.cdnUrl}/${key}`
+      : `https://${this.bucket}.s3.${this.config.get('s3.region')}.amazonaws.com/${key}`;
+
+    return { uploadUrl, fileUrl };
+  }
+
   async getAvatarUploadUrl(userId: string, contentType: string): Promise<UploadUrlResult> {
     const ext = CONTENT_TYPE_EXT[contentType] ?? 'jpg';
     const key = `avatars/${userId}/${randomUUID()}.${ext}`;

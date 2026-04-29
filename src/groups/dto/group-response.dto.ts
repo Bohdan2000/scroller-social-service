@@ -27,6 +27,9 @@ export class GroupResponseDto {
   @ApiPropertyOptional({ example: 'A group for TS lovers' })
   description: string | null;
 
+  @ApiPropertyOptional({ example: 'https://cdn.example.com/group-images/abc.jpg' })
+  imageUrl: string | null;
+
   @ApiProperty({ example: false })
   isPrivate: boolean;
 

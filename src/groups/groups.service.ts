@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfilesService } from '../profiles/profiles.service';
 import { CreateGroupDto } from './dto/create-group.dto';
+import { UpdateGroupDto } from './dto/update-group.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import {
   GroupMemberResponseDto,
@@ -107,6 +108,36 @@ export class GroupsService {
     });
 
     return this.toGroupResponse(group, memberCount);
+  }
+
+  async updateGroup(
+    userId: string,
+    groupId: string,
+    dto: UpdateGroupDto,
+  ): Promise<GroupResponseDto> {
+    const profile = await this.profilesService.getProfileByUserId(userId);
+
+    const group = await this.prisma.group.findUnique({ where: { id: groupId } });
+    if (!group) throw new GroupNotFoundException();
+
+    const membership = await this.prisma.groupMember.findFirst({
+      where: { groupId, profileId: profile.id },
+    });
+    if (!membership || (membership.role !== 'owner' && membership.role !== 'admin')) {
+      throw new InsufficientGroupRoleException();
+    }
+
+    const updated = await this.prisma.group.update({
+      where: { id: groupId },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.imageUrl !== undefined && { imageUrl: dto.imageUrl }),
+      },
+    });
+
+    const memberCount = await this.prisma.groupMember.count({ where: { groupId } });
+    return this.toGroupResponse(updated, memberCount);
   }
 
   async addMember(
@@ -227,6 +258,7 @@ export class GroupsService {
       ownerProfileId: group.ownerProfileId,
       name: group.name,
       description: group.description,
+      imageUrl: group.imageUrl ?? null,
       isPrivate: group.isPrivate,
       memberCount,
       createdAt: group.createdAt,

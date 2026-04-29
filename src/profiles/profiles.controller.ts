@@ -65,6 +65,18 @@ export class ProfilesController {
     return this.uploadService.getAvatarUploadUrl(userId, dto.contentType);
   }
 
+  @Post('image-upload-url')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get a presigned S3 URL to upload a general-purpose image (e.g. group photo)' })
+  @ApiResponse({ status: 200, description: '{ uploadUrl, fileUrl }' })
+  @ApiResponse({ status: 401, type: ErrorResponseDto, description: 'Unauthorized' })
+  async getImageUploadUrl(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: GetAvatarUploadUrlDto,
+  ): Promise<UploadUrlResult> {
+    return this.uploadService.getImageUploadUrl(userId, dto.contentType, 'group-images');
+  }
+
   @Patch()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Upsert own profile' })

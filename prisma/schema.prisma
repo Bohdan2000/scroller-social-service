@@ -99,6 +99,7 @@ model Group {
   ownerProfileId String   @map("owner_profile_id")
   name           String
   description    String?
+  imageUrl       String?  @map("image_url")
   isPrivate      Boolean  @default(false) @map("is_private")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")

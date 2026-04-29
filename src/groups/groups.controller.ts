@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import {
 } from '@nestjs/swagger';
 import { GroupsService } from './groups.service';
 import { CreateGroupDto } from './dto/create-group.dto';
+import { UpdateGroupDto } from './dto/update-group.dto';
 import { AddMemberDto } from './dto/add-member.dto';
 import { GroupMemberResponseDto, GroupResponseDto } from './dto/group-response.dto';
 import { JwtAccessGuard, OptionalJwtAccessGuard } from '../common/guards/jwt-access.guard';
@@ -58,6 +60,24 @@ export class GroupsController {
     @CurrentUser() user: { sub: string } | null,
   ): Promise<GroupResponseDto> {
     return this.groupsService.getGroup(groupId, user?.sub ?? null);
+  }
+
+  @Patch(':id')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAccessGuard)
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Update group (owner or admin only)' })
+  @ApiParam({ name: 'id', description: 'Group ID' })
+  @ApiResponse({ status: 200, type: GroupResponseDto })
+  @ApiResponse({ status: 401, type: ErrorResponseDto, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, type: ErrorResponseDto, description: 'SOCIAL_024 — insufficient role' })
+  @ApiResponse({ status: 404, type: ErrorResponseDto, description: 'SOCIAL_020 — group not found' })
+  async updateGroup(
+    @CurrentUser('sub') userId: string,
+    @Param('id') groupId: string,
+    @Body() dto: UpdateGroupDto,
+  ): Promise<GroupResponseDto> {
+    return this.groupsService.updateGroup(userId, groupId, dto);
   }
 
   @Post(':id/members')
