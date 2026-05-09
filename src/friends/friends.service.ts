@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { AmqpConnection } from '@golevelup/nestjs-rabbitmq';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProfilesService } from '../profiles/profiles.service';
+import { SCROLLER_EXCHANGE, RoutingKeys } from '../events/events.constants';
 import { SendFriendRequestDto } from './dto/send-friend-request.dto';
 import {
   FriendRequestResponseDto,
@@ -27,6 +29,7 @@ export class FriendsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly profilesService: ProfilesService,
+    private readonly amqp: AmqpConnection,
   ) {}
 
   async sendRequest(
@@ -78,7 +81,7 @@ export class FriendsService {
       },
     });
 
-    this.emitEvent('friend_request.sent', {
+    void this.emitEvent('friend_request.sent', {
       requestId: request.id,
       requesterProfileId: requester.id,
       targetProfileId: target.id,
@@ -124,10 +127,17 @@ export class FriendsService {
       }),
     ]);
 
-    this.emitEvent('friendship.created', {
-      friendshipId: friendship.id,
-      profileAId: friendship.profileAId,
-      profileBId: friendship.profileBId,
+    // Notify the original requester that their request was accepted
+    const accepterProfile =
+      friendship.profileAId === profile.id ? friendship.profileA : friendship.profileB;
+    const requesterProfile =
+      friendship.profileAId === request.requesterProfileId ? friendship.profileA : friendship.profileB;
+
+    void this.emitEvent(RoutingKeys.FRIENDSHIP_CREATED, {
+      followerId:       accepterProfile.userId,
+      followedId:       requesterProfile.userId,
+      followerName:     accepterProfile.displayName ?? accepterProfile.username,
+      followerAvatarUrl: accepterProfile.avatarUrl ?? undefined,
     });
 
     // Return the OTHER profile as the friend
@@ -266,7 +276,12 @@ export class FriendsService {
     };
   }
 
-  private emitEvent(event: string, payload: Record<string, unknown>): void {
-    this.logger.debug(`[event] ${event} ${JSON.stringify(payload)}`);
+  private async emitEvent(routingKey: string, payload: Record<string, unknown>): Promise<void> {
+    try {
+      await this.amqp.publish(SCROLLER_EXCHANGE, routingKey, payload);
+      this.logger.debug(`[EVENT] ${routingKey}: ${JSON.stringify(payload)}`);
+    } catch (err) {
+      this.logger.error(`Failed to publish event ${routingKey}: ${(err as Error).message}`);
+    }
   }
 }

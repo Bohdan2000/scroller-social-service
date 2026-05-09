@@ -6,6 +6,7 @@ export const Queues = {
 } as const;
 
 export const RoutingKeys = {
-  USER_REGISTERED: 'user.registered',
+  USER_REGISTERED:    'user.registered',
   USER_TOPICS_UPDATED: 'user.topics.updated',
+  FRIENDSHIP_CREATED: 'friendship.created',
 } as const;
